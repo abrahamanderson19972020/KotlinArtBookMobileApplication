@@ -1,20 +1,102 @@
 package com.artbook.artbookmobileapp
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
+import android.view.View
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.artbook.mobileapp.databinding.ActivityArtBookBinding
-import com.artbook.mobileapp.databinding.ActivityMainBinding
+import com.artbook.artbookmobileapp.databinding.ActivityMainBinding
+import com.google.android.material.snackbar.Snackbar
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityMainBinding
+    private lateinit var binding:ActivityMainBinding
+    private lateinit var activityResultLauncher: ActivityResultLauncher<Intent>
+    private lateinit var permissionLauncher: ActivityResultLauncher<String>
+    var selectedBitmap: Bitmap? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         binding = ActivityMainBinding.inflate(layoutInflater)
         val view = binding.root
         setContentView(view)
+        registerLauncher()
+    }
+
+    fun save(view: View){
+
+    }
+
+    fun selectImage(view: View){
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, permission)) {
+                Snackbar.make(view, "Permission needed for gallery", Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Give Permission") {
+                        permissionLauncher.launch(permission) // FIXED: Launch proper permission
+                    }.show()
+            } else {
+                permissionLauncher.launch(permission) // FIXED
+            }
+       }
+        else{
+            val intentToGallery = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+           activityResultLauncher.launch(intentToGallery)
+       }
+    }
+
+    private fun registerLauncher(){
+        activityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()){ result ->
+            if(result.resultCode == RESULT_OK){
+                val intentFromResult = result.data
+                if(intentFromResult != null) {
+                    val imageData = intentFromResult.data
+                    // binding.imageView.setImageURI(imageData)
+                    if (imageData != null) {
+                        try {
+                            if(Build.VERSION.SDK_INT >= 28){
+                                val source = ImageDecoder.createSource(
+                                    this@MainActivity.contentResolver,
+                                    imageData)
+                                selectedBitmap = ImageDecoder.decodeBitmap(source)
+                                binding.imageView.setImageBitmap(selectedBitmap)
+                            }
+                            else{
+                                selectedBitmap = MediaStore.Images.Media.getBitmap(contentResolver, imageData)
+                                binding.imageView.setImageBitmap(selectedBitmap)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
+        }
+
+        permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()){
+            result -> if(result){
+            val intentToGallery = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            activityResultLauncher.launch(intentToGallery)
+        } else {
+            Toast.makeText(this@MainActivity, "Permission needed!", Toast.LENGTH_LONG).show()
+        }
+        }
     }
 }
