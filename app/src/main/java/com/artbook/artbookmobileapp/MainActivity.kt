@@ -20,6 +20,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.artbook.artbookmobileapp.databinding.ActivityMainBinding
 import com.google.android.material.snackbar.Snackbar
+import java.io.ByteArrayOutputStream
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding:ActivityMainBinding
@@ -37,7 +38,57 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun save(view: View){
+        val artName = binding.nameText.text.toString()
+        val artistName = binding.artistText.text.toString()
+        val year = binding.yearText.text.toString()
+       if (selectedBitmap != null){
+           val smallBitmap = makeSamallerBitmap(selectedBitmap!!, maximumSize = 300)
+           val imageToByte = imageToByteArray(smallBitmap)
+           try {
+               val database = this.openOrCreateDatabase("Arts", MODE_PRIVATE, null)
+               database.execSQL("CREATE TABLE IF NOT EXISTS arts (id INTEGER PRIMARY KEY, artname VARCHAR, artistname VARCHAR, year VARCHAR, image BLOB)")
+               val sqlString = "INSERT INTO arts (artname, artistname, year, image) VALUES (?, ?, ?, ?)"
+               val statement = database.compileStatement(sqlString)
+               statement.bindString(1, artName)
+               statement.bindString(2, artistName)
+               statement.bindString(3, year)
+               statement.bindBlob(4, imageToByte)
+               statement.execute()
+           }catch (e:Exception){
+               e.printStackTrace()
+           }
+       }
+    }
 
+    private fun imageToByteArray(image:Bitmap):ByteArray{
+        val outputStream = ByteArrayOutputStream()
+        image.compress(Bitmap.CompressFormat.PNG, 50, outputStream)
+        val byteArray = outputStream.toByteArray()
+        return byteArray
+    }
+
+    private fun makeSamallerBitmap(image:Bitmap, maximumSize:Int=300):Bitmap{
+        var width = image.width
+        var height = image.height
+        val ratio = width.toDouble()/height.toDouble()
+        if (ratio > 1){
+            // Landscape
+            width = maximumSize
+            val scaledHeight = width / ratio
+            height = scaledHeight.toInt()
+        }
+        else{
+            // Portrait
+            height = maximumSize
+            val scaledWidth = height * ratio
+            width = scaledWidth.toInt()
+        }
+
+        return Bitmap.createScaledBitmap(image, width, height, true)
+    }
+    fun showArtList(view: View) {
+        val intent = Intent(this, ArtListActivity::class.java)
+        startActivity(intent)
     }
 
     fun selectImage(view: View){
